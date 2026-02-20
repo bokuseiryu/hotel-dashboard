@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>アイコン生成ツール</title>
+  <style>
+    body { font-family: 'Noto Sans JP', sans-serif; padding: 20px; background: #f5f5f5; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h1 { color: #1a3a52; margin-bottom: 20px; }
+    .preview { margin: 20px 0; text-align: center; }
+    canvas { border: 1px solid #ddd; margin: 10px; border-radius: 8px; }
+    button { background: #1a3a52; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; margin: 5px; }
+    button:hover { background: #2d5a7b; }
+    .info { background: #e3f2fd; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #1a3a52; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 ホテル定期会議アイコン生成ツール</h1>
+    
+    <div class="info">
+      <strong>使用方法：</strong><br>
+      1. 下のプレビューで確認<br>
+      2. 「全アイコン生成」ボタンをクリック<br>
+      3. 生成されたPNGファイルを public/ フォルダに保存
+    </div>
+
+    <div class="preview">
+      <h3>プレビュー</h3>
+      <div id="previews"></div>
+    </div>
+
+    <div style="text-align: center;">
+      <button onclick="generateAllIcons()">📥 全アイコン生成・ダウンロード</button>
+    </div>
+  </div>
+
+  <script>
+    const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a3a52;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2d5a7b;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="chartGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#fd7e14;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#ffa94d;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="115" fill="url(#bgGrad)"/>
+  <g transform="translate(256, 140)">
+    <rect x="-80" y="-60" width="160" height="140" fill="#ffffff" opacity="0.95" rx="8"/>
+    <g fill="#1a3a52" opacity="0.3">
+      <rect x="-60" y="-40" width="25" height="20" rx="2"/>
+      <rect x="-25" y="-40" width="25" height="20" rx="2"/>
+      <rect x="10" y="-40" width="25" height="20" rx="2"/>
+      <rect x="45" y="-40" width="25" height="20" rx="2"/>
+      <rect x="-60" y="-10" width="25" height="20" rx="2"/>
+      <rect x="-25" y="-10" width="25" height="20" rx="2"/>
+      <rect x="10" y="-10" width="25" height="20" rx="2"/>
+      <rect x="45" y="-10" width="25" height="20" rx="2"/>
+      <rect x="-60" y="20" width="25" height="20" rx="2"/>
+      <rect x="-25" y="20" width="25" height="20" rx="2"/>
+      <rect x="10" y="20" width="25" height="20" rx="2"/>
+      <rect x="45" y="20" width="25" height="20" rx="2"/>
+    </g>
+    <rect x="-20" y="50" width="40" height="30" fill="#fd7e14" rx="3"/>
+    <circle cx="0" cy="-70" r="12" fill="#fd7e14"/>
+    <text x="0" y="-64" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#ffffff" text-anchor="middle">H</text>
+  </g>
+  <g transform="translate(256, 340)">
+    <rect x="-100" y="-80" width="200" height="120" fill="#ffffff" opacity="0.95" rx="12"/>
+    <g fill="url(#chartGrad)">
+      <rect x="-80" y="-20" width="20" height="50" rx="2"/>
+      <rect x="-50" y="-35" width="20" height="65" rx="2"/>
+      <rect x="-20" y="-50" width="20" height="80" rx="2"/>
+      <rect x="10" y="-40" width="20" height="70" rx="2"/>
+      <rect x="40" y="-55" width="20" height="85" rx="2"/>
+      <rect x="70" y="-45" width="20" height="75" rx="2"/>
+    </g>
+    <path d="M -80 -10 L -50 -25 L -20 -40 L 10 -30 L 40 -45 L 70 -35" 
+          stroke="#1a3a52" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <g fill="#1a3a52">
+      <circle cx="-80" cy="-10" r="4"/>
+      <circle cx="-50" cy="-25" r="4"/>
+      <circle cx="-20" cy="-40" r="4"/>
+      <circle cx="10" cy="-30" r="4"/>
+      <circle cx="40" cy="-45" r="4"/>
+      <circle cx="70" cy="-35" r="4"/>
+    </g>
+    <line x1="-90" y1="30" x2="90" y2="30" stroke="#1a3a52" stroke-width="2" opacity="0.3"/>
+  </g>
+  <g transform="translate(420, 100)">
+    <circle cx="0" cy="0" r="35" fill="#fd7e14"/>
+    <text x="0" y="8" font-family="Noto Sans JP, sans-serif" font-size="24" font-weight="bold" fill="#ffffff" text-anchor="middle">会</text>
+  </g>
+</svg>`;
+
+    const sizes = [
+      { size: 192, name: 'icon-192.png' },
+      { size: 512, name: 'icon-512.png' },
+      { size: 180, name: 'apple-touch-icon.png' },
+      { size: 32, name: 'favicon-32x32.png' },
+      { size: 16, name: 'favicon-16x16.png' }
+    ];
+
+    function svgToCanvas(size) {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      
+      const img = new Image();
+      const svgBlob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      
+      return new Promise((resolve) => {
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, size, size);
+          URL.revokeObjectURL(url);
+          resolve(canvas);
+        };
+        img.src = url;
+      });
+    }
+
+    async function showPreviews() {
+      const container = document.getElementById('previews');
+      for (const { size } of sizes) {
+        const canvas = await svgToCanvas(size);
+        canvas.style.width = Math.min(size, 150) + 'px';
+        canvas.style.height = Math.min(size, 150) + 'px';
+        const label = document.createElement('div');
+        label.textContent = `${size}x${size}px`;
+        label.style.fontSize = '12px';
+        label.style.color = '#666';
+        label.style.display = 'inline-block';
+        label.style.margin = '10px';
+        label.appendChild(document.createElement('br'));
+        label.appendChild(canvas);
+        container.appendChild(label);
+      }
+    }
+
+    async function generateAllIcons() {
+      for (const { size, name } of sizes) {
+        const canvas = await svgToCanvas(size);
+        canvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = name;
+          a.click();
+          URL.revokeObjectURL(url);
+        }, 'image/png');
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      alert('✅ 全アイコンのダウンロードが完了しました！\n\nダウンロードしたファイルを public/ フォルダに配置してください。');
+    }
+
+    showPreviews();
+  </script>
+</body>
+</html>

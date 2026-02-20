@@ -1,0 +1,25 @@
+# 静态资源缓存1年
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# JS和CSS文件缓存1年
+/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# 图标缓存1个月
+/*.png
+  Cache-Control: public, max-age=2592000
+
+/*.svg
+  Cache-Control: public, max-age=2592000
+
+# HTML不缓存（确保更新）
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Service Worker不缓存
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate

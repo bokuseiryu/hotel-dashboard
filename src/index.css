@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+:root {
+  --primary-color: #1a3a52;
+  --secondary-color: #f5f7fa;
+  --accent-green: #28a745;
+  --accent-red: #dc3545;
+  --accent-orange: #fd7e14;
+}
+
+body {
+  font-family: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+  background-color: #f5f7fa;
+  margin: 0;
+  padding: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
