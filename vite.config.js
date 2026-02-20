@@ -16,14 +16,8 @@ export default defineConfig({
         }
       }
     },
-    // 压缩优化
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true, // 移除console.log
-        drop_debugger: true
-      }
-    },
+    // 使用esbuild压缩（更快，Netlify兼容性更好）
+    minify: 'esbuild',
     // 启用CSS代码分割
     cssCodeSplit: true,
     // chunk大小警告阈值
