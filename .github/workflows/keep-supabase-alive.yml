@@ -20,8 +20,10 @@ jobs:
         run: |
           echo "Supabase hotel-dashboard への定期Pingを開始..."
 
+          SUPABASE_BASE="https://abfejycabbaicxoewvuj.supabase.co"
+
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/hotel_data?select=id&limit=1" \
+            "${SUPABASE_BASE}/rest/v1/hotel_data?select=id&limit=1" \
             -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "Content-Type: application/json")
@@ -37,8 +39,10 @@ jobs:
 
       - name: hotel_improvements テーブルにもPingを送信
         run: |
+          SUPABASE_BASE="https://abfejycabbaicxoewvuj.supabase.co"
+
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/hotel_improvements?select=hotel_key&limit=1" \
+            "${SUPABASE_BASE}/rest/v1/hotel_improvements?select=hotel_key&limit=1" \
             -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "Content-Type: application/json")
