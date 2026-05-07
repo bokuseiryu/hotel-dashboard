@@ -9,15 +9,23 @@ import {
   TrendingUp, TrendingDown, Building2, DollarSign, 
   Percent, BarChart3, Plus, Edit2, Target,
   X, Check, Hotel, ChevronDown, ChevronUp, AlertTriangle, Lightbulb, Save, LogOut,
-  Download, FileText, ArrowLeftRight, Activity, Globe, Users, Calendar,
+  Download, FileText, ArrowLeftRight, Activity, Globe, Users, Calendar, CalendarDays,
   RefreshCw, Moon, Sun, Camera, Filter, Keyboard, ChevronLeft, ChevronRight,
-  ZoomIn, ZoomOut, Share2, Bell, Maximize2
+  ZoomIn, ZoomOut, Share2, Bell, Maximize2, Package, ExternalLink
 } from 'lucide-react'
+import logoImage from '/logo.png'
 
 const HOTELS = {
   'doubutsuen': 'ホテル動物園前',
   'shinimamiya': 'ホテル新今宮'
 }
+
+// 関連アプリリンク定義
+const OTHER_APPS = [
+  { href: 'https://iestate.co.jp/dailyreport', icon: FileText, label: '日報管理', color: 'text-orange-600', bg: 'bg-orange-50' },
+  { href: 'https://iestate.co.jp/workshift', icon: CalendarDays, label: 'シフト管理', color: 'text-blue-600', bg: 'bg-blue-50' },
+  { href: 'https://iestate.co.jp/bbt', icon: Package, label: '在庫管理', color: 'text-green-600', bg: 'bg-green-50' },
+]
 
 // ホテル動物園前 データ（当月列のみ：合計=売上高, 販売客室数, 稼働率, ADR）
 const initialDataDoubutsuen = [
@@ -600,20 +608,20 @@ const initialDataShinimamiya = [
   },
 ]
 
-// 今後の改善事項データ
+// 今後の改善事項データ（月別形式: { hotelKey: { month: [items] } }）
 const DEFAULT_IMPROVEMENTS = {
-  'doubutsuen': [
-    'カプセル内照明の調整、外装の使用用のシミュレーション',
-    '予約サイトの販促管理に関しましては、ユスフ・松永に連絡を取りながら業務展開します。',
-    'メイン・カプセルの販促営業用、料金調整、外装整備、方策整備',
-    '新規サイト：オーマイホテルに加盟、販売手数料12%、サイト担当者：松永・白',
-  ],
-  'shinimamiya': [
-    '予約サイトの販促管理に関しましては、ユスフ・松永に連絡を取りながら業務展開します。',
-    '国内ホテルは今後の空室の販促営業が出てきました。',
-    '国内利用者6割りがあって、国内販売促進強化',
-    '11月に対して、売上販促から顧位を強化する',
-  ]
+  'doubutsuen': {},
+  'shinimamiya': {
+    '2026年3月': [
+      '国内OTAリサイト：楽天、じゃらん、るるぶの販売チャンネルを追加。インバウンドチャンネルなど。※一部プラン写真に英語説明文を追加。',
+      'フロント・公式サイトの料金安く調整。海外OTAの金額に近く調整。販売手数料がかからない予約を増やすため。',
+      '国内OTA（楽天・じゃらん・るるぶ一休）専利決済限定の割引率は40%から30%に設定した。当該予約サイトはクーポン・ポイントが多く発行したので、割引率を再調整した。',
+      '新今宮のカプセル基本料金を10%値上げ；ツインルームはダブルより高く設定した。',
+      '平日稼働低い閑閑タイノに限定プロモーション作成する。',
+      '一部に出した空室台閣の推移を見ながら、予約ベースに合わせて細かく価格を上下させる運用は上手く慣れてきます。',
+      '土祝など稼働が高い日について、プロモーションの割引率を下げる。'
+    ]
+  }
 }
 
 const CHANNEL_COLORS = {
@@ -902,10 +910,12 @@ const KPICard = ({ title, value, unit, change, icon: Icon, color, subValue, warn
   )
 }
 
-const DataInputModal = ({ isOpen, onClose, onSave, editData }) => {
+const DataInputModal = ({ isOpen, onClose, onSave, editData, hotelKey }) => {
+  const isShinimamiya = hotelKey === 'shinimamiya'
   const [formData, setFormData] = useState({
     month: '', revenue: '', rooms: '', occupancy: '', adr: '', revenueTarget: '',
-    domesticRatio: '', overseasRatio: '', channels: {}
+    domesticRatio: '', overseasRatio: '', channels: {},
+    capsuleRevenue: '', capsuleAdr: '', capsuleOccupancy: ''
   })
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
@@ -927,7 +937,10 @@ const DataInputModal = ({ isOpen, onClose, onSave, editData }) => {
         revenueTarget: (editData.revenueTarget || 0).toString(),
         domesticRatio: editData.domesticRatio.toString(),
         overseasRatio: editData.overseasRatio.toString(),
-        channels: editData.channels || {}
+        channels: editData.channels || {},
+        capsuleRevenue: (editData.capsule?.revenue ?? '').toString(),
+        capsuleAdr: (editData.capsule?.adr ?? '').toString(),
+        capsuleOccupancy: (editData.capsule?.occupancy ?? '').toString()
       })
     } else {
       const now = new Date()
@@ -939,7 +952,8 @@ const DataInputModal = ({ isOpen, onClose, onSave, editData }) => {
       })
       setFormData({
         month: `${now.getFullYear()}年${now.getMonth() + 1}月`, revenue: '', rooms: '', occupancy: '', adr: '', revenueTarget: '',
-        domesticRatio: '60', overseasRatio: '40', channels: emptyChannels
+        domesticRatio: '60', overseasRatio: '40', channels: emptyChannels,
+        capsuleRevenue: '', capsuleAdr: '', capsuleOccupancy: ''
       })
     }
   }, [editData, isOpen])
@@ -987,7 +1001,12 @@ const DataInputModal = ({ isOpen, onClose, onSave, editData }) => {
       revenueTarget: parseInt(formData.revenueTarget) || 0,
       domesticRatio: parseInt(formData.domesticRatio),
       overseasRatio: parseInt(formData.overseasRatio),
-      channels: formData.channels
+      channels: formData.channels,
+      capsule: isShinimamiya ? {
+        revenue: parseInt(formData.capsuleRevenue) || 0,
+        adr: parseInt(formData.capsuleAdr) || 0,
+        occupancy: parseFloat(formData.capsuleOccupancy) || 0
+      } : undefined
     }
     onSave(newData)
     onClose()
@@ -1083,6 +1102,39 @@ const DataInputModal = ({ isOpen, onClose, onSave, editData }) => {
             </div>
           </div>
 
+          {isShinimamiya && (
+            <div className="border-t pt-4 mt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-2 h-5 bg-purple-500 rounded-full"></div>
+                <h3 className="text-md font-semibold text-gray-800">カプセルルームデータ</h3>
+                <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">新今宮専用</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-purple-50 rounded-xl border border-purple-100">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">カプセル売上 (円)</label>
+                  <input type="number" value={formData.capsuleRevenue}
+                    onChange={(e) => setFormData({...formData, capsuleRevenue: e.target.value})}
+                    placeholder="0"
+                    className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent bg-white" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">カプセルADR (円)</label>
+                  <input type="number" value={formData.capsuleAdr}
+                    onChange={(e) => setFormData({...formData, capsuleAdr: e.target.value})}
+                    placeholder="0"
+                    className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent bg-white" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">カプセル稼働率 (%)</label>
+                  <input type="number" step="0.1" value={formData.capsuleOccupancy}
+                    onChange={(e) => setFormData({...formData, capsuleOccupancy: e.target.value})}
+                    placeholder="0.0"
+                    className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent bg-white" />
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="border-t pt-4 mt-4">
             <h3 className="text-md font-semibold text-gray-800 mb-3">予約チャネル別データ</h3>
             <div className="space-y-3 max-h-60 overflow-y-auto">
@@ -1139,6 +1191,7 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editData, setEditData] = useState(null)
   const [showHotelMenu, setShowHotelMenu] = useState(false)
+  const [showAppsMenu, setShowAppsMenu] = useState(false)
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(-1)
   const [improvements, setImprovements] = useState({})
   const [editingImprovements, setEditingImprovements] = useState(false)
@@ -1160,6 +1213,7 @@ function App() {
   const [chartZoom, setChartZoom] = useState({ start: 0, end: 100 })
   const inactivityTimerRef = useRef(null)
   const hotelMenuRef = useRef(null)
+  const appsMenuRef = useRef(null)
   const mainRef = useRef(null)
   const SESSION_TIMEOUT = 30 * 60 * 1000 // 30分間
 
@@ -1209,9 +1263,29 @@ function App() {
     }
     if (showHotelMenu) {
       document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
+      document.addEventListener('touchstart', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+        document.removeEventListener('touchstart', handleClickOutside)
+      }
     }
   }, [showHotelMenu])
+
+  useEffect(() => {
+    const handleAppsOutside = (e) => {
+      if (appsMenuRef.current && !appsMenuRef.current.contains(e.target)) {
+        setShowAppsMenu(false)
+      }
+    }
+    if (showAppsMenu) {
+      document.addEventListener('mousedown', handleAppsOutside)
+      document.addEventListener('touchstart', handleAppsOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleAppsOutside)
+        document.removeEventListener('touchstart', handleAppsOutside)
+      }
+    }
+  }, [showAppsMenu])
 
   // パスワード認証チェック
   useEffect(() => {
@@ -1279,10 +1353,15 @@ function App() {
 
   // タッチジェスチャー（スワイプで月切替）
   const handleTouchStart = (e) => {
+    if (e.target.closest('button, a, select, input, textarea, [role="button"]')) return
     setTouchStart(e.touches[0].clientX)
   }
   const handleTouchEnd = (e) => {
     if (!touchStart) return
+    if (e.target.closest('button, a, select, input, textarea, [role="button"]')) {
+      setTouchStart(null)
+      return
+    }
     const touchEnd = e.changedTouches[0].clientX
     const diff = touchStart - touchEnd
     if (Math.abs(diff) > 50) {
@@ -1341,7 +1420,8 @@ function App() {
             adr: row.adr,
             domesticRatio: row.domestic_ratio,
             overseasRatio: row.overseas_ratio,
-            channels: row.channels || {}
+            channels: row.channels || {},
+            capsule: row.capsule || null
           })
         })
 
@@ -1405,16 +1485,40 @@ function App() {
 
       if (impRows && impRows.length > 0) {
         const impData = {}
-        impRows.forEach(row => {
-          impData[row.hotel_key] = row.items || []
-        })
+        const migratePromises = []
+        for (const row of impRows) {
+          // itemsがオブジェクト形式（月別）かどうか判定
+          const stored = row.items
+          if (Array.isArray(stored) && stored.length > 0) {
+            // 旧フォーマット（配列）→'2026年3月'キーに移行してSupabaseに保存
+            const migratedMap = { '2026年3月': stored }
+            impData[row.hotel_key] = migratedMap
+            migratePromises.push(
+              supabase.from('hotel_improvements').upsert({
+                hotel_key: row.hotel_key,
+                items: migratedMap,
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'hotel_key' })
+            )
+          } else if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+            // 新フォーマット（月別オブジェクト）: そのまま使用
+            // 空オブジェクトの場合はDEFAULT_IMPROVEMENTSで補完
+            const base = DEFAULT_IMPROVEMENTS[row.hotel_key] || {}
+            impData[row.hotel_key] = Object.keys(stored).length === 0 ? base : stored
+          } else {
+            impData[row.hotel_key] = DEFAULT_IMPROVEMENTS[row.hotel_key] || {}
+          }
+        }
+        if (migratePromises.length > 0) {
+          await Promise.all(migratePromises)
+        }
         setImprovements(impData)
       } else {
-        // 改善事項の初期データを投入
-        for (const [key, items] of Object.entries(DEFAULT_IMPROVEMENTS)) {
+        // 改善事項の初期データを投入（空の月別オブジェクト）
+        for (const key of Object.keys(DEFAULT_IMPROVEMENTS)) {
           await supabase.from('hotel_improvements').upsert({
             hotel_key: key,
-            items: items,
+            items: {},
             updated_at: new Date().toISOString()
           }, { onConflict: 'hotel_key' })
         }
@@ -1437,9 +1541,16 @@ function App() {
         }
         setData(initialData)
       }
-      const savedImp = localStorage.getItem('hotelImprovements_v6')
-      if (savedImp) setImprovements(JSON.parse(savedImp))
-      else setImprovements(DEFAULT_IMPROVEMENTS)
+      const savedImp = localStorage.getItem('hotelImprovements_v7')
+      if (savedImp) {
+        const parsed = JSON.parse(savedImp)
+        // 旧フォーマット（配列）対応
+        const converted = {}
+        for (const [k, v] of Object.entries(parsed)) {
+          converted[k] = Array.isArray(v) ? {} : (v || {})
+        }
+        setImprovements(converted)
+      } else setImprovements(DEFAULT_IMPROVEMENTS)
     } finally {
       setLoading(false)
     }
@@ -1568,6 +1679,7 @@ function App() {
         domestic_ratio: newData.domesticRatio,
         overseas_ratio: newData.overseasRatio,
         channels: newData.channels || {},
+        capsule: newData.capsule || null,
         updated_at: new Date().toISOString()
       }
       // 既存データの場合はidを含める
@@ -1660,7 +1772,10 @@ function App() {
     { name: '海外客', value: selectedData.overseasRatio || 0, fill: '#fd7e14' },
   ]
 
-  const currentImprovements = improvements[currentHotel] || []
+  // 改善事項: 月別形式 { hotelKey: { month: [items] } }
+  const currentMonthKey = selectedData.month || ''
+  const hotelImprovementsMap = improvements[currentHotel] || {}
+  const currentImprovements = (currentMonthKey && hotelImprovementsMap[currentMonthKey]) || []
 
   const startEditImprovements = () => {
     setImprovementText(currentImprovements.join('\n'))
@@ -1668,20 +1783,22 @@ function App() {
   }
 
   const saveImprovements = async () => {
+    if (!currentMonthKey) return
     const newItems = improvementText.split('\n').filter(line => line.trim() !== '')
-    const newImprovements = { ...improvements, [currentHotel]: newItems }
+    const newMonthMap = { ...hotelImprovementsMap, [currentMonthKey]: newItems }
+    const newImprovements = { ...improvements, [currentHotel]: newMonthMap }
     setImprovements(newImprovements)
     setEditingImprovements(false)
     try {
       const { error } = await supabase.from('hotel_improvements').upsert({
         hotel_key: currentHotel,
-        items: newItems,
+        items: newMonthMap,
         updated_at: new Date().toISOString()
       }, { onConflict: 'hotel_key' })
       if (error) throw error
     } catch (err) {
       console.error('改善事項保存エラー:', err)
-      localStorage.setItem('hotelImprovements_v6', JSON.stringify(newImprovements))
+      localStorage.setItem('hotelImprovements_v7', JSON.stringify(newImprovements))
     }
   }
 
@@ -1691,7 +1808,7 @@ function App() {
       <div className="min-h-screen bg-gradient-to-br from-[#1a3a52] to-[#2d5a7b] flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm">
           <div className="text-center mb-6">
-            <img src="/logo.png" alt="㈱グローバルリンクス" className="w-20 h-20 mx-auto mb-3 object-contain" />
+            <img src={logoImage} alt="㈱グローバルリンクス" className="w-20 h-20 mx-auto mb-3 object-contain" />
             <p className="text-sm font-semibold text-gray-600 mb-2">㈱グローバルリンクス</p>
             <h1 className="text-xl font-bold text-gray-800">ホテル業績ダッシュボード</h1>
             <p className="text-sm text-gray-500 mt-1">アクセスにはパスワードが必要です</p>
@@ -1749,7 +1866,7 @@ function App() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-2 md:mb-0">
             <div className="flex items-center gap-2 md:gap-3">
-              <img src="/logo.png" alt="Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain rounded-full bg-white/10 p-0.5" />
+              <img src={logoImage} alt="Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain rounded-full bg-white/10 p-0.5" />
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-base md:text-xl font-bold">ホテル業績ダッシュボード</h1>
@@ -1773,6 +1890,35 @@ function App() {
                         className={`w-full text-left px-4 py-3 hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg ${
                           currentHotel === key ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-700'
                         }`}>{name}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="relative" ref={appsMenuRef}>
+                <button onClick={() => setShowAppsMenu(!showAppsMenu)}
+                  className="flex items-center gap-1 px-2 md:px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-xs md:text-sm"
+                  title="関連アプリ">
+                  <Building2 className="w-4 h-4" />
+                  <span className="hidden md:inline">アプリ</span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                {showAppsMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl z-50 overflow-hidden">
+                    <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+                      <p className="text-xs font-semibold text-gray-500">関連アプリ</p>
+                    </div>
+                    {OTHER_APPS.map(app => (
+                      <a
+                        key={app.href}
+                        href={app.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex items-center gap-3 px-4 py-3 hover:${app.bg} transition-colors group border-b border-gray-100 last:border-0`}
+                      >
+                        <app.icon className={`w-5 h-5 ${app.color}`} />
+                        <span className="text-sm text-gray-700 flex-1">{app.label}</span>
+                        <ExternalLink className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </a>
                     ))}
                   </div>
                 )}
@@ -2079,20 +2225,28 @@ function App() {
 
           <div className="bg-white rounded-xl shadow-md p-4 md:p-5 lg:col-span-2">
             <h3 className="text-base md:text-lg font-bold text-gray-800 mb-3 md:mb-4">予約チャネル別売上 ({selectedData.month})</h3>
-            <ResponsiveContainer width="100%" height={Math.max(180, channelData.length * 30 + 40)}>
-              <BarChart data={channelData} layout="vertical" margin={{ right: 60 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v/10000).toFixed(0)}万`} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={80} />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Bar dataKey="revenue" name="売上" radius={[0, 4, 4, 0]}>
-                  {channelData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                  <LabelList dataKey="ratio" position="right" formatter={(v) => `${v}%`} style={{ fontSize: 10, fill: '#555' }} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {channelData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={Math.max(180, channelData.length * 30 + 40)}>
+                <BarChart data={channelData} layout="vertical" margin={{ right: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                  <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v/10000).toFixed(0)}万`} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={80} />
+                  <Tooltip formatter={(value) => formatCurrency(value)} />
+                  <Bar dataKey="revenue" name="売上" radius={[0, 4, 4, 0]}>
+                    {channelData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                    <LabelList dataKey="ratio" position="right" formatter={(v) => `${v}%`} style={{ fontSize: 10, fill: '#555' }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+                <BarChart3 className="w-10 h-10 mb-2 text-gray-200" />
+                <p className="text-sm">チャネル別データが未入力です</p>
+                <p className="text-xs mt-1">「データ編集」からチャネル別売上を入力してください</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -2190,6 +2344,117 @@ function App() {
             </ResponsiveContainer>
           </div>
         </div>
+
+        {/* カプセルルーム分析（新今宮専用） */}
+        {currentHotel === 'shinimamiya' && (() => {
+          const capsuleData = currentData.filter(d => d.capsule && (d.capsule.revenue > 0 || d.capsule.adr > 0 || d.capsule.occupancy > 0))
+          const capsuleCurrent = selectedData.capsule || {}
+          const prevCapsule = prevData.capsule || {}
+          const capsuleRevChange = prevCapsule.revenue > 0
+            ? ((capsuleCurrent.revenue - prevCapsule.revenue) / prevCapsule.revenue * 100)
+            : null
+          const capsuleAdrChange = prevCapsule.adr > 0
+            ? ((capsuleCurrent.adr - prevCapsule.adr) / prevCapsule.adr * 100)
+            : null
+          const capsuleOccChange = prevCapsule.occupancy > 0
+            ? (capsuleCurrent.occupancy - prevCapsule.occupancy)
+            : null
+          return (
+            <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl shadow-md p-4 md:p-6 border border-purple-200 mb-4 md:mb-6">
+              <h3 className="text-base md:text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <Package className="w-4 h-4 md:w-5 md:h-5 text-purple-600" />
+                カプセルルーム分析
+                <span className="text-xs font-normal text-purple-500 bg-purple-100 px-2 py-0.5 rounded-full">新今宮専用</span>
+              </h3>
+
+              {/* KPI 3枚 */}
+              <div className="grid grid-cols-3 gap-3 mb-5">
+                <div className="bg-white rounded-xl p-3 md:p-4 border border-purple-100 shadow-sm">
+                  <p className="text-xs text-gray-500 mb-1">カプセル売上</p>
+                  <p className="text-base md:text-xl font-bold text-purple-700">
+                    {capsuleCurrent.revenue ? formatCurrency(capsuleCurrent.revenue) : '―'}
+                  </p>
+                  {capsuleRevChange !== null && (
+                    <p className={`text-xs mt-1 flex items-center gap-0.5 ${capsuleRevChange >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {capsuleRevChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      前月比 {capsuleRevChange >= 0 ? '+' : ''}{capsuleRevChange.toFixed(1)}%
+                    </p>
+                  )}
+                </div>
+                <div className="bg-white rounded-xl p-3 md:p-4 border border-purple-100 shadow-sm">
+                  <p className="text-xs text-gray-500 mb-1">カプセルADR</p>
+                  <p className="text-base md:text-xl font-bold text-purple-700">
+                    {capsuleCurrent.adr ? formatCurrency(capsuleCurrent.adr) : '―'}
+                  </p>
+                  {capsuleAdrChange !== null && (
+                    <p className={`text-xs mt-1 flex items-center gap-0.5 ${capsuleAdrChange >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {capsuleAdrChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      前月比 {capsuleAdrChange >= 0 ? '+' : ''}{capsuleAdrChange.toFixed(1)}%
+                    </p>
+                  )}
+                </div>
+                <div className="bg-white rounded-xl p-3 md:p-4 border border-purple-100 shadow-sm">
+                  <p className="text-xs text-gray-500 mb-1">カプセル稼働率</p>
+                  <p className="text-base md:text-xl font-bold text-purple-700">
+                    {capsuleCurrent.occupancy != null && capsuleCurrent.occupancy > 0 ? `${capsuleCurrent.occupancy}%` : '―'}
+                  </p>
+                  {capsuleOccChange !== null && (
+                    <p className={`text-xs mt-1 flex items-center gap-0.5 ${capsuleOccChange >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {capsuleOccChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      前月比 {capsuleOccChange >= 0 ? '+' : ''}{capsuleOccChange.toFixed(1)}pt
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {capsuleData.length > 1 ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* カプセル売上推移 */}
+                  <div className="bg-white rounded-xl p-3 md:p-4 border border-purple-100">
+                    <p className="text-sm font-semibold text-gray-700 mb-3">カプセル売上推移</p>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <ComposedChart data={capsuleData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                        <XAxis dataKey="month" tick={{ fontSize: 9 }} tickFormatter={formatMonthShort} />
+                        <YAxis tick={{ fontSize: 9 }} tickFormatter={(v) => `${(v/10000).toFixed(0)}万`} />
+                        <Tooltip formatter={(value) => formatCurrency(value)} labelFormatter={(l) => l} />
+                        <Bar dataKey="capsule.revenue" name="カプセル売上" fill="#7c3aed" radius={[3, 3, 0, 0]} fillOpacity={0.8} />
+                        <Line type="monotone" dataKey="capsule.revenue" name="推移" stroke="#a855f7" strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* カプセルADR・稼働率複合グラフ */}
+                  <div className="bg-white rounded-xl p-3 md:p-4 border border-purple-100">
+                    <p className="text-sm font-semibold text-gray-700 mb-3">カプセルADR・稼働率推移</p>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <ComposedChart data={capsuleData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                        <XAxis dataKey="month" tick={{ fontSize: 9 }} tickFormatter={formatMonthShort} />
+                        <YAxis yAxisId="adr" tick={{ fontSize: 9 }} tickFormatter={(v) => `¥${(v/1000).toFixed(0)}k`} />
+                        <YAxis yAxisId="occ" orientation="right" tick={{ fontSize: 9 }} unit="%" domain={[0, 100]} />
+                        <Tooltip
+                          formatter={(value, name) =>
+                            name === 'ADR' ? formatCurrency(value) : `${value}%`
+                          }
+                        />
+                        <Legend wrapperStyle={{ fontSize: '10px' }} />
+                        <Bar yAxisId="adr" dataKey="capsule.adr" name="ADR" fill="#8b5cf6" radius={[3, 3, 0, 0]} fillOpacity={0.75} />
+                        <Line yAxisId="occ" type="monotone" dataKey="capsule.occupancy" name="稼働率" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6 text-gray-400 text-sm bg-white rounded-xl border border-purple-100">
+                  <Package className="w-8 h-8 mx-auto mb-2 text-purple-200" />
+                  <p>カプセルデータが不足しています。</p>
+                  <p className="text-xs mt-1">「データ追加」からカプセルルームデータを入力してください。</p>
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* ホテル比較ビュー */}
         {showComparison && (() => {
@@ -2380,21 +2645,34 @@ function App() {
 
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl shadow-md p-4 md:p-6 border border-amber-200 mb-4 md:mb-6">
           <div className="flex items-center justify-between mb-3 md:mb-4">
-            <h3 className="text-base md:text-lg font-bold text-gray-800 flex items-center gap-2">
-              <Lightbulb className="w-4 h-4 md:w-5 md:h-5 text-amber-600" />
-              今後の改善事項
-            </h3>
-            {!editingImprovements ? (
-              <button onClick={startEditImprovements}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-lg transition">
-                <Edit2 className="w-3 h-3" /> 編集
-              </button>
-            ) : (
-              <button onClick={saveImprovements}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-100 hover:bg-green-200 text-green-700 rounded-lg transition">
-                <Save className="w-3 h-3" /> 保存
-              </button>
-            )}
+            <div>
+              <h3 className="text-base md:text-lg font-bold text-gray-800 flex items-center gap-2">
+                <Lightbulb className="w-4 h-4 md:w-5 md:h-5 text-amber-600" />
+                今後の改善事項
+              </h3>
+              {currentMonthKey && (
+                <p className="text-xs text-amber-600 mt-0.5 ml-6">{currentMonthKey}の改善事項</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {!editingImprovements ? (
+                <button onClick={startEditImprovements}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-lg transition">
+                  <Edit2 className="w-3 h-3" /> 編集
+                </button>
+              ) : (
+                <>
+                  <button onClick={() => setEditingImprovements(false)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition">
+                    <X className="w-3 h-3" /> キャンセル
+                  </button>
+                  <button onClick={saveImprovements}
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-100 hover:bg-green-200 text-green-700 rounded-lg transition">
+                    <Save className="w-3 h-3" /> 保存
+                  </button>
+                </>
+              )}
+            </div>
           </div>
           {editingImprovements ? (
             <textarea
@@ -2412,7 +2690,7 @@ function App() {
                   <span>{item}</span>
                 </li>
               )) : (
-                <p className="text-gray-500 text-sm">改善事項はまだ登録されていません。「編集」ボタンから追加してください。</p>
+                <p className="text-gray-500 text-sm">{currentMonthKey}の改善事項はまだ登録されていません。「編集」ボタンから追加してください。</p>
               )}
             </ul>
           )}
@@ -2427,7 +2705,7 @@ function App() {
 
       <DataInputModal isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); setEditData(null) }}
-        onSave={saveData} editData={editData} />
+        onSave={saveData} editData={editData} hotelKey={currentHotel} />
 
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

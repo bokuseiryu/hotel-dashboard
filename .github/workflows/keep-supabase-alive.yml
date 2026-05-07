@@ -1,0 +1,47 @@
+# Supabaseプロジェクトの自動一時停止を防ぐための定期Pingワークフロー
+# 約5日ごとにSupabase APIにアクセスしてアクティブ状態を維持する
+
+name: Keep Supabase Alive
+
+on:
+  schedule:
+    # 毎月1, 6, 11, 16, 21, 26日の午前9時（UTC＝日本時間18時）に実行
+    - cron: '0 9 1,6,11,16,21,26 * *'
+  workflow_dispatch:
+    # GitHubのActionsページから手動実行も可能（テスト用）
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    name: Ping hotel-dashboard Supabase
+
+    steps:
+      - name: hotel-dashboard Supabase にPingを送信
+        run: |
+          echo "Supabase hotel-dashboard への定期Pingを開始..."
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/hotel_data?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json")
+
+          echo "レスポンスステータス: $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "✅ Supabase は正常に応答しました（hotel-dashboard）"
+          else
+            echo "⚠️ 予期しないステータスコード: $HTTP_STATUS"
+            exit 1
+          fi
+
+      - name: hotel_improvements テーブルにもPingを送信
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/hotel_improvements?select=hotel_key&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json")
+
+          echo "hotel_improvements レスポンス: $HTTP_STATUS"
+          echo "✅ 定期Ping完了 - $(date '+%Y年%m月%d日 %H:%M UTC')"
