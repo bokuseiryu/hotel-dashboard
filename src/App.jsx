@@ -1209,6 +1209,7 @@ function App() {
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [touchStart, setTouchStart] = useState(null)
+  const [saveToast, setSaveToast] = useState({ show: false, success: true, msg: '' })
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight)
   const [chartZoom, setChartZoom] = useState({ start: 0, end: 100 })
   const hotelMenuRef = useRef(null)
@@ -1432,8 +1433,8 @@ function App() {
           }
         }
         if (missingRows.length > 0) {
-          const { error: upsertErr } = await supabase.from('hotel_data').upsert(missingRows, { onConflict: 'hotel_key,month' })
-          if (upsertErr) console.error('補充データ挿入エラー:', upsertErr)
+          const { error: insertErr } = await supabase.from('hotel_data').insert(missingRows)
+          if (insertErr) console.error('補充データ挿入エラー:', insertErr)
         }
 
         Object.keys(grouped).forEach(key => {
@@ -1465,11 +1466,9 @@ function App() {
             const migratedMap = { '2026年3月': stored }
             impData[row.hotel_key] = migratedMap
             migratePromises.push(
-              supabase.from('hotel_improvements').upsert({
-                hotel_key: row.hotel_key,
-                items: migratedMap,
-                updated_at: new Date().toISOString()
-              }, { onConflict: 'hotel_key' })
+              supabase.from('hotel_improvements')
+                .update({ items: migratedMap, updated_at: new Date().toISOString() })
+                .eq('hotel_key', row.hotel_key)
             )
           } else if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
             // 新フォーマット（月別オブジェクト）: そのまま使用
@@ -1487,11 +1486,11 @@ function App() {
       } else {
         // 改善事項の初期データを投入（空の月別オブジェクト）
         for (const key of Object.keys(DEFAULT_IMPROVEMENTS)) {
-          await supabase.from('hotel_improvements').upsert({
+          await supabase.from('hotel_improvements').insert({
             hotel_key: key,
             items: {},
             updated_at: new Date().toISOString()
-          }, { onConflict: 'hotel_key' })
+          })
         }
         setImprovements(DEFAULT_IMPROVEMENTS)
       }
@@ -1550,7 +1549,7 @@ function App() {
         })
       }
     }
-    const { error } = await supabase.from('hotel_data').upsert(rows, { onConflict: 'hotel_key,month' })
+    const { error } = await supabase.from('hotel_data').insert(rows)
     if (error) throw error
 
     // 投入後に再読み込み
@@ -1636,6 +1635,11 @@ function App() {
     setShowHotelMenu(false)
   }, [])
 
+  const showToast = (success, msg) => {
+    setSaveToast({ show: true, success, msg })
+    setTimeout(() => setSaveToast({ show: false, success: true, msg: '' }), 4000)
+  }
+
   const saveData = async (newData) => {
     const baseData = data[currentHotel] || []
     const existingIndex = baseData.findIndex(d => d.id === newData.id || d.month === newData.month)
@@ -1652,7 +1656,7 @@ function App() {
     localStorage.setItem('hotelDashboardData_v7', JSON.stringify(newAllData))
 
     try {
-      // Supabaseにupsert（idは含めない: hotel_key+monthで一意管理、主キー衝突を防ぐ）
+      // upsertはUNIQUE制約が必要で400エラーになるため、SELECT→UPDATE/INSERTに変更
       const row = {
         hotel_key: currentHotel,
         month: newData.month,
@@ -1667,24 +1671,48 @@ function App() {
         capsule: newData.capsule || null,
         updated_at: new Date().toISOString()
       }
-      const { data: saved, error } = await supabase
-        .from('hotel_data')
-        .upsert(row, { onConflict: 'hotel_key,month' })
-        .select()
-      if (error) throw error
 
-      // サーバーから返ってきたIDでローカルstateを同期（全量リロード不要）
-      if (saved && saved.length > 0) {
-        const serverRow = saved[0]
+      const { data: existing, error: selErr } = await supabase
+        .from('hotel_data')
+        .select('id')
+        .eq('hotel_key', currentHotel)
+        .eq('month', newData.month)
+        .maybeSingle()
+      if (selErr) throw selErr
+
+      if (existing) {
+        const { error } = await supabase
+          .from('hotel_data')
+          .update(row)
+          .eq('hotel_key', currentHotel)
+          .eq('month', newData.month)
+        if (error) throw error
         const hotelData = newAllData[currentHotel].map(d =>
-          d.month === serverRow.month ? { ...d, id: serverRow.id } : d
+          d.month === newData.month ? { ...d, id: existing.id } : d
         )
         const finalAllData = { ...newAllData, [currentHotel]: hotelData }
         setData(finalAllData)
         localStorage.setItem('hotelDashboardData_v7', JSON.stringify(finalAllData))
+      } else {
+        const { data: inserted, error } = await supabase
+          .from('hotel_data')
+          .insert(row)
+          .select('id')
+          .single()
+        if (error) throw error
+        if (inserted) {
+          const hotelData = newAllData[currentHotel].map(d =>
+            d.month === newData.month ? { ...d, id: inserted.id } : d
+          )
+          const finalAllData = { ...newAllData, [currentHotel]: hotelData }
+          setData(finalAllData)
+          localStorage.setItem('hotelDashboardData_v7', JSON.stringify(finalAllData))
+        }
       }
+      showToast(true, 'データを保存しました')
     } catch (err) {
       console.error('データ保存エラー:', err)
+      showToast(false, `保存失敗: ${err.message || JSON.stringify(err)}`)
     }
   }
 
@@ -1765,12 +1793,25 @@ function App() {
     setImprovements(newImprovements)
     setEditingImprovements(false)
     try {
-      const { error } = await supabase.from('hotel_improvements').upsert({
-        hotel_key: currentHotel,
-        items: newMonthMap,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'hotel_key' })
-      if (error) throw error
+      // upsertはUNIQUE制約が必要で400エラーになるため、SELECT→UPDATE/INSERTに変更
+      const { data: existing, error: selErr } = await supabase
+        .from('hotel_improvements')
+        .select('id')
+        .eq('hotel_key', currentHotel)
+        .maybeSingle()
+      if (selErr) throw selErr
+      if (existing) {
+        const { error } = await supabase
+          .from('hotel_improvements')
+          .update({ items: newMonthMap, updated_at: new Date().toISOString() })
+          .eq('hotel_key', currentHotel)
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('hotel_improvements')
+          .insert({ hotel_key: currentHotel, items: newMonthMap, updated_at: new Date().toISOString() })
+        if (error) throw error
+      }
     } catch (err) {
       console.error('改善事項保存エラー:', err)
       localStorage.setItem('hotelImprovements_v7', JSON.stringify(newImprovements))
@@ -2681,6 +2722,13 @@ function App() {
       <DataInputModal isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); setEditData(null) }}
         onSave={saveData} editData={editData} hotelKey={currentHotel} />
+
+      {saveToast.show && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-xl shadow-2xl text-white text-sm font-medium flex items-center gap-2 transition-all ${saveToast.success ? 'bg-green-600' : 'bg-red-600'}`}>
+          {saveToast.success ? <Check className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+          {saveToast.msg}
+        </div>
+      )}
 
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
