@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense, useTransition } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense, useTransition, useDeferredValue } from 'react'
 import { supabase } from './supabaseClient'
 import { 
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, LabelList,
@@ -884,7 +884,7 @@ const captureChart = async (elementId, filename) => {
   }
 }
 
-const KPICard = ({ title, value, unit, change, icon: Icon, color, subValue, warning, darkMode }) => {
+const KPICard = React.memo(({ title, value, unit, change, icon: Icon, color, subValue, warning, darkMode }) => {
   const isPositive = change >= 0
   return (
     <div className="bg-white rounded-xl shadow-md p-4 md:p-5 border-l-4" style={{ borderLeftColor: color }}>
@@ -908,7 +908,7 @@ const KPICard = ({ title, value, unit, change, icon: Icon, color, subValue, warn
       )}
     </div>
   )
-}
+})
 
 const DataInputModal = ({ isOpen, onClose, onSave, editData, hotelKey }) => {
   const isShinimamiya = hotelKey === 'shinimamiya'
@@ -1296,10 +1296,10 @@ function App() {
       // 単独キー
       switch (e.key) {
         case 'ArrowLeft':
-          if (selectedMonthIndex > 0) startTransition(() => setSelectedMonthIndex(selectedMonthIndex - 1))
+          if (selectedMonthIndex > 0) setSelectedMonthIndex(selectedMonthIndex - 1)
           break
         case 'ArrowRight':
-          if (selectedMonthIndex < currentData.length - 1) startTransition(() => setSelectedMonthIndex(selectedMonthIndex + 1))
+          if (selectedMonthIndex < currentData.length - 1) setSelectedMonthIndex(selectedMonthIndex + 1)
           break
         case '1': setCurrentHotel('doubutsuen'); break
         case '2': setCurrentHotel('shinimamiya'); break
@@ -1338,9 +1338,9 @@ function App() {
     const diff = touchStart - touchEnd
     if (Math.abs(diff) > 50) {
       if (diff > 0 && selectedMonthIndex < currentData.length - 1) {
-        startTransition(() => setSelectedMonthIndex(selectedMonthIndex + 1))
+        setSelectedMonthIndex(selectedMonthIndex + 1)
       } else if (diff < 0 && selectedMonthIndex > 0) {
-        startTransition(() => setSelectedMonthIndex(selectedMonthIndex - 1))
+        setSelectedMonthIndex(selectedMonthIndex - 1)
       }
     }
     setTouchStart(null)
@@ -1752,28 +1752,48 @@ function App() {
     setDeletePasswordError(false)
   }
 
-  const safeIndex = selectedMonthIndex >= 0 && selectedMonthIndex < currentData.length ? selectedMonthIndex : currentData.length - 1
-  const selectedData = currentData[safeIndex] || {}
-  const prevMonthIndex = safeIndex > 0 ? safeIndex - 1 : -1
-  const prevData = prevMonthIndex >= 0 ? currentData[prevMonthIndex] : {}
+  const safeIndex = useMemo(() =>
+    selectedMonthIndex >= 0 && selectedMonthIndex < currentData.length ? selectedMonthIndex : currentData.length - 1
+  , [selectedMonthIndex, currentData.length])
 
-  const calcChange = (current, previous) => {
+  const selectedData = useMemo(() => currentData[safeIndex] || {}, [currentData, safeIndex])
+  const prevData = useMemo(() => safeIndex > 0 ? currentData[safeIndex - 1] : {}, [currentData, safeIndex])
+
+  const calcChange = useCallback((current, previous) => {
     if (!previous || previous === 0) return 0
     return ((current - previous) / previous) * 100
-  }
+  }, [])
 
-  const channelData = selectedData.channels ? Object.entries(selectedData.channels)
+  const channelData = useMemo(() => selectedData.channels ? Object.entries(selectedData.channels)
     .map(([name, d]) => ({
       name, revenue: d.revenue || 0, ratio: d.ratio || 0, avgPrice: d.avgPrice || 0,
       fill: CHANNEL_COLORS[name] || '#888'
     }))
     .filter(item => item.revenue > 0)
     .sort((a, b) => b.revenue - a.revenue) : []
+  , [selectedData])
 
-  const guestData = [
+  const guestData = useMemo(() => [
     { name: '国内客', value: selectedData.domesticRatio || 0, fill: '#1a3a52' },
     { name: '海外客', value: selectedData.overseasRatio || 0, fill: '#fd7e14' },
-  ]
+  ], [selectedData])
+
+  // 図表専用：useDeferredValueで月切替時の重い再レンダーを低優先度に遅延
+  const deferredIndex = useDeferredValue(safeIndex)
+  const deferredSelectedData = useMemo(() => currentData[deferredIndex] || {}, [currentData, deferredIndex])
+  const deferredChannelData = useMemo(() => deferredSelectedData.channels ? Object.entries(deferredSelectedData.channels)
+    .map(([name, d]) => ({
+      name, revenue: d.revenue || 0, ratio: d.ratio || 0, avgPrice: d.avgPrice || 0,
+      fill: CHANNEL_COLORS[name] || '#888'
+    }))
+    .filter(item => item.revenue > 0)
+    .sort((a, b) => b.revenue - a.revenue) : []
+  , [deferredSelectedData])
+  const deferredGuestData = useMemo(() => [
+    { name: '国内客', value: deferredSelectedData.domesticRatio || 0, fill: '#1a3a52' },
+    { name: '海外客', value: deferredSelectedData.overseasRatio || 0, fill: '#fd7e14' },
+  ], [deferredSelectedData])
+  const isChartPending = deferredIndex !== safeIndex
 
   // 改善事項: 月別形式 { hotelKey: { month: [items] } }
   const currentMonthKey = selectedData.month || ''
@@ -2056,7 +2076,7 @@ function App() {
           <span className="text-sm font-medium text-gray-600">対象月:</span>
           <select
             value={safeIndex}
-            onChange={(e) => { const v = parseInt(e.target.value); startTransition(() => setSelectedMonthIndex(v)) }}
+            onChange={(e) => setSelectedMonthIndex(parseInt(e.target.value))}
             className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm md:text-base font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             {currentData.map((item, index) => (
@@ -2089,20 +2109,20 @@ function App() {
 
         {/* 前年同月比較 */}
         {(() => {
-          const yoyData = findYoYData(currentData, selectedData.month)
+          const yoyData = findYoYData(currentData, deferredSelectedData.month)
           if (!yoyData) return null
           return (
-            <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl shadow-md p-4 md:p-5 border border-purple-100 mb-4 md:mb-6">
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl shadow-md p-4 md:p-5 border border-purple-100 mb-4 md:mb-6" style={{ opacity: isChartPending ? 0.6 : 1, transition: 'opacity 0.15s' }}>
               <h3 className="text-base md:text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
                 <Calendar className="w-4 h-4 md:w-5 md:h-5 text-purple-600" />
-                前年同月比較 ({selectedData.month} vs {yoyData.month})
+                前年同月比較 ({deferredSelectedData.month} vs {yoyData.month})
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                  { label: '売上高', current: selectedData.revenue, prev: yoyData.revenue, fmt: formatCurrency },
-                  { label: '稼働率', current: selectedData.occupancy, prev: yoyData.occupancy, fmt: (v) => `${v}%`, isDiff: true },
-                  { label: 'ADR', current: selectedData.adr, prev: yoyData.adr, fmt: formatCurrency },
-                  { label: 'RevPAR', current: Math.round((selectedData.occupancy/100)*selectedData.adr), prev: Math.round((yoyData.occupancy/100)*yoyData.adr), fmt: formatCurrency },
+                  { label: '売上高', current: deferredSelectedData.revenue, prev: yoyData.revenue, fmt: formatCurrency },
+                  { label: '稼働率', current: deferredSelectedData.occupancy, prev: yoyData.occupancy, fmt: (v) => `${v}%`, isDiff: true },
+                  { label: 'ADR', current: deferredSelectedData.adr, prev: yoyData.adr, fmt: formatCurrency },
+                  { label: 'RevPAR', current: Math.round((deferredSelectedData.occupancy/100)*deferredSelectedData.adr), prev: Math.round((yoyData.occupancy/100)*yoyData.adr), fmt: formatCurrency },
                 ].map(({ label, current, prev, fmt, isDiff }) => {
                   const change = isDiff ? (current - prev) : (prev ? ((current - prev) / prev * 100) : 0)
                   const isUp = change >= 0
@@ -2124,7 +2144,7 @@ function App() {
 
         {/* 年度目標達成進捗 */}
         {(() => {
-          const currentYear = selectedData.month?.match(/(\d{4})年/)?.[1]
+          const currentYear = deferredSelectedData.month?.match(/(\d{4})年/)?.[1]
           if (!currentYear) return null
           const yearData = currentData.filter(d => d.month.startsWith(currentYear + '年'))
           const yearRevenue = yearData.reduce((s, d) => s + (d.revenue || 0), 0)
@@ -2217,39 +2237,39 @@ function App() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 mb-4 md:mb-6">
-          <div className="bg-white rounded-xl shadow-md p-4 md:p-5">
-            <h3 className="text-base md:text-lg font-bold text-gray-800 mb-3 md:mb-4">客源構成 ({selectedData.month})</h3>
+          <div className="bg-white rounded-xl shadow-md p-4 md:p-5" style={{ opacity: isChartPending ? 0.6 : 1, transition: 'opacity 0.15s' }}>
+            <h3 className="text-base md:text-lg font-bold text-gray-800 mb-3 md:mb-4">客源構成 ({deferredSelectedData.month})</h3>
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
-                <Pie data={guestData} cx="50%" cy="55%" innerRadius={50} outerRadius={80}
+                <Pie data={deferredGuestData} cx="50%" cy="55%" innerRadius={50} outerRadius={80}
                   paddingAngle={5} dataKey="value"
                   label={({ name, value }) => `${name}: ${value}%`} labelStyle={{ fontSize: '12px' }}>
-                  {guestData.map((entry, index) => (
+                  {deferredGuestData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
                 </Pie>
                 <Tooltip formatter={(value) => `${value}%`} />
                 <text x="50%" y="51%" textAnchor="middle" dominantBaseline="middle" className="text-lg font-bold" fill="#374151">
-                  {Math.max(selectedData.domesticRatio || 0, selectedData.overseasRatio || 0)}%
+                  {Math.max(deferredSelectedData.domesticRatio || 0, deferredSelectedData.overseasRatio || 0)}%
                 </text>
                 <text x="50%" y="61%" textAnchor="middle" dominantBaseline="middle" className="text-xs" fill="#6b7280">
-                  {(selectedData.domesticRatio || 0) >= (selectedData.overseasRatio || 0) ? '国内客' : '海外客'}
+                  {(deferredSelectedData.domesticRatio || 0) >= (deferredSelectedData.overseasRatio || 0) ? '国内客' : '海外客'}
                 </text>
               </PieChart>
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-4 md:p-5 lg:col-span-2">
-            <h3 className="text-base md:text-lg font-bold text-gray-800 mb-3 md:mb-4">予約チャネル別売上 ({selectedData.month})</h3>
-            {channelData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(180, channelData.length * 30 + 40)}>
-                <BarChart data={channelData} layout="vertical" margin={{ right: 60 }}>
+          <div className="bg-white rounded-xl shadow-md p-4 md:p-5 lg:col-span-2" style={{ opacity: isChartPending ? 0.6 : 1, transition: 'opacity 0.15s' }}>
+            <h3 className="text-base md:text-lg font-bold text-gray-800 mb-3 md:mb-4">予約チャネル別売上 ({deferredSelectedData.month})</h3>
+            {deferredChannelData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={Math.max(180, deferredChannelData.length * 30 + 40)}>
+                <BarChart data={deferredChannelData} layout="vertical" margin={{ right: 60 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                   <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v/10000).toFixed(0)}万`} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={80} />
                   <Tooltip formatter={(value) => formatCurrency(value)} />
                   <Bar dataKey="revenue" name="売上" radius={[0, 4, 4, 0]}>
-                    {channelData.map((entry, index) => (
+                    {deferredChannelData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
                     <LabelList dataKey="ratio" position="right" formatter={(v) => `${v}%`} style={{ fontSize: 10, fill: '#555' }} />
