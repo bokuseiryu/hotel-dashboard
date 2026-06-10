@@ -1651,7 +1651,7 @@ function App() {
     localStorage.setItem('hotelDashboardData_v7', JSON.stringify(newAllData))
 
     try {
-      // Supabaseにupsert
+      // Supabaseにupsert（idは含めない: hotel_key+monthで一意管理、主キー衝突を防ぐ）
       const row = {
         hotel_key: currentHotel,
         month: newData.month,
@@ -1666,19 +1666,22 @@ function App() {
         capsule: newData.capsule || null,
         updated_at: new Date().toISOString()
       }
-      // 既存データの場合はidを含める
-      const existingItem = baseData.find(d => d.id === newData.id || d.month === newData.month)
-      if (existingItem) {
-        row.id = existingItem.id
-      }
-      const { error } = await supabase
+      const { data: saved, error } = await supabase
         .from('hotel_data')
         .upsert(row, { onConflict: 'hotel_key,month' })
         .select()
       if (error) throw error
 
-      // 再読み込みで最新データを取得
-      await loadDataFromSupabase()
+      // サーバーから返ってきたIDでローカルstateを同期（全量リロード不要）
+      if (saved && saved.length > 0) {
+        const serverRow = saved[0]
+        const hotelData = newAllData[currentHotel].map(d =>
+          d.month === serverRow.month ? { ...d, id: serverRow.id } : d
+        )
+        const finalAllData = { ...newAllData, [currentHotel]: hotelData }
+        setData(finalAllData)
+        localStorage.setItem('hotelDashboardData_v7', JSON.stringify(finalAllData))
+      }
     } catch (err) {
       console.error('データ保存エラー:', err)
     }
