@@ -1459,15 +1459,18 @@ function App() {
         const impData = {}
         const migratePromises = []
         for (const row of impRows) {
-          // itemsがオブジェクト形式（月別）かどうか判定
-          const stored = row.items
+          // itemsがオブジェクト形式（月別）かどうか判定（文字列の場合はパース）
+          let stored = row.items
+          if (typeof stored === 'string') {
+            try { stored = JSON.parse(stored) } catch { stored = {} }
+          }
           if (Array.isArray(stored) && stored.length > 0) {
             // 旧フォーマット（配列）→'2026年3月'キーに移行してSupabaseに保存
             const migratedMap = { '2026年3月': stored }
             impData[row.hotel_key] = migratedMap
             migratePromises.push(
               supabase.from('hotel_improvements')
-                .update({ items: migratedMap, updated_at: new Date().toISOString() })
+                .update({ items: JSON.stringify(migratedMap), updated_at: new Date().toISOString() })
                 .eq('hotel_key', row.hotel_key)
             )
           } else if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
@@ -1488,7 +1491,7 @@ function App() {
         for (const key of Object.keys(DEFAULT_IMPROVEMENTS)) {
           await supabase.from('hotel_improvements').insert({
             hotel_key: key,
-            items: {},
+            items: JSON.stringify({}),
             updated_at: new Date().toISOString()
           })
         }
@@ -1814,6 +1817,8 @@ function App() {
     setEditingImprovements(false)
     try {
       // upsertはUNIQUE制約が必要で400エラーになるため、SELECT→UPDATE/INSERTに変更
+      // items列がtext型の場合に対応：JSONオブジェクトを文字列化して保存
+      const itemsPayload = JSON.stringify(newMonthMap)
       const { data: existing, error: selErr } = await supabase
         .from('hotel_improvements')
         .select('id')
@@ -1823,13 +1828,13 @@ function App() {
       if (existing) {
         const { error } = await supabase
           .from('hotel_improvements')
-          .update({ items: newMonthMap, updated_at: new Date().toISOString() })
+          .update({ items: itemsPayload, updated_at: new Date().toISOString() })
           .eq('hotel_key', currentHotel)
         if (error) throw error
       } else {
         const { error } = await supabase
           .from('hotel_improvements')
-          .insert({ hotel_key: currentHotel, items: newMonthMap, updated_at: new Date().toISOString() })
+          .insert({ hotel_key: currentHotel, items: itemsPayload, updated_at: new Date().toISOString() })
         if (error) throw error
       }
     } catch (err) {
