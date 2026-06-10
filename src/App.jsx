@@ -1211,11 +1211,9 @@ function App() {
   const [touchStart, setTouchStart] = useState(null)
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight)
   const [chartZoom, setChartZoom] = useState({ start: 0, end: 100 })
-  const inactivityTimerRef = useRef(null)
   const hotelMenuRef = useRef(null)
   const appsMenuRef = useRef(null)
   const mainRef = useRef(null)
-  const SESSION_TIMEOUT = 30 * 60 * 1000 // 30分間
 
   // ログアウト処理
   const handleLogout = useCallback(() => {
@@ -1224,35 +1222,7 @@ function App() {
     setData({})
     setImprovements({})
     sessionStorage.removeItem('hotelDashboardAuth')
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current)
-      inactivityTimerRef.current = null
-    }
   }, [])
-
-  // 無操作タイマーリセット
-  const resetInactivityTimer = useCallback(() => {
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current)
-    }
-    inactivityTimerRef.current = setTimeout(() => {
-      handleLogout()
-      alert('セキュリティのため、30分間操作がなかったため自動ログアウトしました。')
-    }, SESSION_TIMEOUT)
-  }, [handleLogout, SESSION_TIMEOUT])
-
-  // 無操作検知イベントリスナー
-  useEffect(() => {
-    if (!isAuthenticated) return
-    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click']
-    const handleActivity = () => resetInactivityTimer()
-    events.forEach(event => window.addEventListener(event, handleActivity))
-    resetInactivityTimer()
-    return () => {
-      events.forEach(event => window.removeEventListener(event, handleActivity))
-      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current)
-    }
-  }, [isAuthenticated, resetInactivityTimer])
 
   // ホテルメニュー外クリックで閉じる
   useEffect(() => {
@@ -1666,6 +1636,20 @@ function App() {
   }, [])
 
   const saveData = async (newData) => {
+    const baseData = data[currentHotel] || []
+    const existingIndex = baseData.findIndex(d => d.id === newData.id || d.month === newData.month)
+    let updatedData
+    if (existingIndex >= 0) {
+      updatedData = [...baseData]
+      updatedData[existingIndex] = { ...baseData[existingIndex], ...newData }
+    } else {
+      updatedData = [...baseData, newData]
+    }
+    updatedData.sort((a, b) => parseMonth(a.month) - parseMonth(b.month))
+    const newAllData = { ...data, [currentHotel]: updatedData }
+    setData(newAllData)
+    localStorage.setItem('hotelDashboardData_v7', JSON.stringify(newAllData))
+
     try {
       // Supabaseにupsert
       const row = {
@@ -1683,11 +1667,11 @@ function App() {
         updated_at: new Date().toISOString()
       }
       // 既存データの場合はidを含める
-      const existingItem = currentData.find(d => d.id === newData.id)
+      const existingItem = baseData.find(d => d.id === newData.id || d.month === newData.month)
       if (existingItem) {
-        row.id = newData.id
+        row.id = existingItem.id
       }
-      const { data: upserted, error } = await supabase
+      const { error } = await supabase
         .from('hotel_data')
         .upsert(row, { onConflict: 'hotel_key,month' })
         .select()
@@ -1697,19 +1681,6 @@ function App() {
       await loadDataFromSupabase()
     } catch (err) {
       console.error('データ保存エラー:', err)
-      // フォールバック：ローカルに保存
-      const existingIndex = currentData.findIndex(d => d.id === newData.id)
-      let updatedData
-      if (existingIndex >= 0) {
-        updatedData = [...currentData]
-        updatedData[existingIndex] = newData
-      } else {
-        updatedData = [...currentData, newData]
-      }
-      updatedData.sort((a, b) => parseMonth(a.month) - parseMonth(b.month))
-      const newAllData = { ...data, [currentHotel]: updatedData }
-      setData(newAllData)
-      localStorage.setItem('hotelDashboardData_v7', JSON.stringify(newAllData))
     }
   }
 
