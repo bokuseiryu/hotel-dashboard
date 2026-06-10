@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense, useTransition } from 'react'
 import { supabase } from './supabaseClient'
 import { 
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, LabelList,
@@ -1051,14 +1051,14 @@ const DataInputModal = ({ isOpen, onClose, onSave, editData, hotelKey }) => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">売上高 (円)</label>
               <input type="number" value={formData.revenue}
-                onChange={(e) => { setFormData({...formData, revenue: e.target.value}); setFormErrors(prev => ({...prev, revenue: undefined})) }}
+                onChange={(e) => { const v = e.target.value; setFormData(prev => ({...prev, revenue: v})); setFormErrors(prev => ({...prev, revenue: undefined})) }}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.revenue ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} required />
               {formErrors.revenue && <p className="text-red-500 text-xs mt-1">{formErrors.revenue}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">売上目標 (円)</label>
               <input type="number" value={formData.revenueTarget}
-                onChange={(e) => setFormData({...formData, revenueTarget: e.target.value})}
+                onChange={(e) => { const v = e.target.value; setFormData(prev => ({...prev, revenueTarget: v})) }}
                 placeholder="0"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             </div>
@@ -1068,13 +1068,13 @@ const DataInputModal = ({ isOpen, onClose, onSave, editData, hotelKey }) => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">販売客室数</label>
               <input type="number" value={formData.rooms}
-                onChange={(e) => setFormData({...formData, rooms: e.target.value})}
+                onChange={(e) => { const v = e.target.value; setFormData(prev => ({...prev, rooms: v})) }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">ADR (円)</label>
               <input type="number" value={formData.adr}
-                onChange={(e) => setFormData({...formData, adr: e.target.value})}
+                onChange={(e) => { const v = e.target.value; setFormData(prev => ({...prev, adr: v})) }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required />
             </div>
           </div>
@@ -1083,20 +1083,20 @@ const DataInputModal = ({ isOpen, onClose, onSave, editData, hotelKey }) => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">稼働率 (%)</label>
               <input type="number" step="0.1" value={formData.occupancy}
-                onChange={(e) => { setFormData({...formData, occupancy: e.target.value}); setFormErrors(prev => ({...prev, occupancy: undefined})) }}
+                onChange={(e) => { const v = e.target.value; setFormData(prev => ({...prev, occupancy: v})); setFormErrors(prev => ({...prev, occupancy: undefined})) }}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.occupancy ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} required />
               {formErrors.occupancy && <p className="text-red-500 text-xs mt-1">{formErrors.occupancy}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">国内客比率 (%)</label>
               <input type="number" value={formData.domesticRatio}
-                onChange={(e) => { setFormData({...formData, domesticRatio: e.target.value, overseasRatio: (100 - parseInt(e.target.value || 0)).toString()}); setFormErrors(prev => ({...prev, ratio: undefined})) }}
+                onChange={(e) => { const v = e.target.value; setFormData(prev => ({...prev, domesticRatio: v, overseasRatio: (100 - parseInt(v || 0)).toString()})); setFormErrors(prev => ({...prev, ratio: undefined})) }}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.ratio ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">海外客比率 (%)</label>
               <input type="number" value={formData.overseasRatio}
-                onChange={(e) => { setFormData({...formData, overseasRatio: e.target.value, domesticRatio: (100 - parseInt(e.target.value || 0)).toString()}); setFormErrors(prev => ({...prev, ratio: undefined})) }}
+                onChange={(e) => { const v = e.target.value; setFormData(prev => ({...prev, overseasRatio: v, domesticRatio: (100 - parseInt(v || 0)).toString()})); setFormErrors(prev => ({...prev, ratio: undefined})) }}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.ratio ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} required />
               {formErrors.ratio && <p className="text-red-500 text-xs mt-1">{formErrors.ratio}</p>}
             </div>
@@ -1113,21 +1113,21 @@ const DataInputModal = ({ isOpen, onClose, onSave, editData, hotelKey }) => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">カプセル売上 (円)</label>
                   <input type="number" value={formData.capsuleRevenue}
-                    onChange={(e) => setFormData({...formData, capsuleRevenue: e.target.value})}
+                    onChange={(e) => { const v = e.target.value; setFormData(prev => ({...prev, capsuleRevenue: v})) }}
                     placeholder="0"
                     className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent bg-white" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">カプセルADR (円)</label>
                   <input type="number" value={formData.capsuleAdr}
-                    onChange={(e) => setFormData({...formData, capsuleAdr: e.target.value})}
+                    onChange={(e) => { const v = e.target.value; setFormData(prev => ({...prev, capsuleAdr: v})) }}
                     placeholder="0"
                     className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent bg-white" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">カプセル稼働率 (%)</label>
                   <input type="number" step="0.1" value={formData.capsuleOccupancy}
-                    onChange={(e) => setFormData({...formData, capsuleOccupancy: e.target.value})}
+                    onChange={(e) => { const v = e.target.value; setFormData(prev => ({...prev, capsuleOccupancy: v})) }}
                     placeholder="0.0"
                     className="w-full px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent bg-white" />
                 </div>
@@ -1214,6 +1214,7 @@ function App() {
   const hotelMenuRef = useRef(null)
   const appsMenuRef = useRef(null)
   const mainRef = useRef(null)
+  const [, startTransition] = useTransition()
 
   // ログアウト処理
   const handleLogout = useCallback(() => {
@@ -1294,10 +1295,10 @@ function App() {
       // 単独キー
       switch (e.key) {
         case 'ArrowLeft':
-          if (selectedMonthIndex > 0) setSelectedMonthIndex(selectedMonthIndex - 1)
+          if (selectedMonthIndex > 0) startTransition(() => setSelectedMonthIndex(selectedMonthIndex - 1))
           break
         case 'ArrowRight':
-          if (selectedMonthIndex < currentData.length - 1) setSelectedMonthIndex(selectedMonthIndex + 1)
+          if (selectedMonthIndex < currentData.length - 1) startTransition(() => setSelectedMonthIndex(selectedMonthIndex + 1))
           break
         case '1': setCurrentHotel('doubutsuen'); break
         case '2': setCurrentHotel('shinimamiya'); break
@@ -1336,9 +1337,9 @@ function App() {
     const diff = touchStart - touchEnd
     if (Math.abs(diff) > 50) {
       if (diff > 0 && selectedMonthIndex < currentData.length - 1) {
-        setSelectedMonthIndex(selectedMonthIndex + 1)
+        startTransition(() => setSelectedMonthIndex(selectedMonthIndex + 1))
       } else if (diff < 0 && selectedMonthIndex > 0) {
-        setSelectedMonthIndex(selectedMonthIndex - 1)
+        startTransition(() => setSelectedMonthIndex(selectedMonthIndex - 1))
       }
     }
     setTouchStart(null)
@@ -2014,7 +2015,7 @@ function App() {
           <span className="text-sm font-medium text-gray-600">対象月:</span>
           <select
             value={safeIndex}
-            onChange={(e) => setSelectedMonthIndex(parseInt(e.target.value))}
+            onChange={(e) => { const v = parseInt(e.target.value); startTransition(() => setSelectedMonthIndex(v)) }}
             className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm md:text-base font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             {currentData.map((item, index) => (
