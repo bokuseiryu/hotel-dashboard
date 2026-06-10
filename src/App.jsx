@@ -1657,6 +1657,7 @@ function App() {
 
     try {
       // upsertはUNIQUE制約が必要で400エラーになるため、SELECT→UPDATE/INSERTに変更
+      // capsule列はSupabaseテーブルに存在しないため除外（ローカルstateのみ保持）
       const row = {
         hotel_key: currentHotel,
         month: newData.month,
@@ -1668,7 +1669,6 @@ function App() {
         domestic_ratio: newData.domesticRatio,
         overseas_ratio: newData.overseasRatio,
         channels: newData.channels || {},
-        capsule: newData.capsule || null,
         updated_at: new Date().toISOString()
       }
 
