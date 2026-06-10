@@ -1459,10 +1459,18 @@ function App() {
         const impData = {}
         const migratePromises = []
         for (const row of impRows) {
-          // itemsがオブジェクト形式（月別）かどうか判定（文字列の場合はパース）
+          // itemsがオブジェクト形式（月別）かどうか判定（文字列/配列のJSONも対応）
           let stored = row.items
           if (typeof stored === 'string') {
             try { stored = JSON.parse(stored) } catch { stored = {} }
+          }
+          if (Array.isArray(stored) && stored.length === 1 && typeof stored[0] === 'string') {
+            try {
+              const parsed = JSON.parse(stored[0])
+              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                stored = parsed
+              }
+            } catch {}
           }
           if (Array.isArray(stored) && stored.length > 0) {
             // 旧フォーマット（配列）→'2026年3月'キーに移行してSupabaseに保存
@@ -1470,7 +1478,7 @@ function App() {
             impData[row.hotel_key] = migratedMap
             migratePromises.push(
               supabase.from('hotel_improvements')
-                .update({ items: JSON.stringify(migratedMap), updated_at: new Date().toISOString() })
+                .update({ items: [JSON.stringify(migratedMap)], updated_at: new Date().toISOString() })
                 .eq('hotel_key', row.hotel_key)
             )
           } else if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
@@ -1491,7 +1499,7 @@ function App() {
         for (const key of Object.keys(DEFAULT_IMPROVEMENTS)) {
           await supabase.from('hotel_improvements').insert({
             hotel_key: key,
-            items: JSON.stringify({}),
+            items: [JSON.stringify({})],
             updated_at: new Date().toISOString()
           })
         }
@@ -1817,8 +1825,8 @@ function App() {
     setEditingImprovements(false)
     try {
       // upsertはUNIQUE制約が必要で400エラーになるため、SELECT→UPDATE/INSERTに変更
-      // items列がtext型の場合に対応：JSONオブジェクトを文字列化して保存
-      const itemsPayload = JSON.stringify(newMonthMap)
+      // items列は配列型のためJSON文字列を配列に包んで保存
+      const itemsPayload = [JSON.stringify(newMonthMap)]
       const { data: existing, error: selErr } = await supabase
         .from('hotel_improvements')
         .select('id')
