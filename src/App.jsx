@@ -1193,8 +1193,8 @@ const DataInputModal = ({ isOpen, onClose, onSave, editData, hotelKey }) => {
 }
 
 // パスワードのSHA-256ハッシュ（平文を保持しないため）
-const PWD_HASH = '9b1e301dd7c4b872a8413b5f1d8afb6c9fba7bd0b64dce5d94ca17a1a2ee9cee'
-const DELETE_PWD_HASH = '9b1e301dd7c4b872a8413b5f1d8afb6c9fba7bd0b64dce5d94ca17a1a2ee9cee'
+const PWD_HASH = '8e734ae0d3aa1bcf6b7ac80044a219dcf01b3156a2ba931afa6abb1cbd0925e1fcd329c'
+const DELETE_PWD_HASH = '8e734ae0d3aa1bcf6b7ac80044a219dcf01b3156a2ba931afa6abb1cbd0925e1fcd329c'
 
 // パスワードをSHA-256でハッシュ化するユーティリティ
 async function hashPassword(plain) {
