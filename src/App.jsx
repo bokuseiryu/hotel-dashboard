@@ -1192,15 +1192,9 @@ const DataInputModal = ({ isOpen, onClose, onSave, editData, hotelKey }) => {
   )
 }
 
-// パスワードのSHA-256ハッシュ（平文を保持しないため）
-const PWD_HASH = '8e734ae0d3aa1bcf6b7ac80044a219dcf01b3156a2ba931afa6abb1cbd0925e1fcd329c'
-const DELETE_PWD_HASH = '8e734ae0d3aa1bcf6b7ac80044a219dcf01b3156a2ba931afa6abb1cbd0925e1fcd329c'
-
-// パスワードをSHA-256でハッシュ化するユーティリティ
-async function hashPassword(plain) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(plain))
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
-}
+// 環境変数からパスワードを取得（ビルド時に注入）
+// フォールバックとしてデフォルト値を設定
+const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'hotel2026'
 
 // セッションtokenキー
 const AUTH_TOKEN_KEY = 'hotelDashboardToken'
@@ -1383,12 +1377,11 @@ function App() {
     setIsRefreshing(false)
   }
 
-  const handleLogin = async (e) => {
+  const handleLogin = (e) => {
     e.preventDefault()
     // ブルートフォース対策：ロック中は処理しない
     if (Date.now() < loginLockUntil) return
-    const hash = await hashPassword(passwordInput)
-    if (hash === PWD_HASH) {
+    if (passwordInput === APP_PASSWORD) {
       setIsAuthenticated(true)
       setPasswordError(false)
       setLoginAttempts(0)
@@ -1782,9 +1775,8 @@ function App() {
   }
 
   const handleDeleteConfirm = async () => {
-    // 削除パスワードもSHA-256ハッシュで比較
-    const hash = await hashPassword(deletePassword)
-    if (hash !== DELETE_PWD_HASH) {
+    // 削除パスワードを検証
+    if (deletePassword !== APP_PASSWORD) {
       setDeletePasswordError(true)
       return
     }
