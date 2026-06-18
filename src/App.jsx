@@ -735,6 +735,13 @@ const buildSeasonalData = (dataArray) => {
   })
 }
 
+// CSV Injectionを防ぐためのサニタイズ関数
+const sanitizeCsvValue = (val) => {
+  const str = String(val ?? '')
+  // 先頭が数式記号の場合はスペースを付与してExcelの数式実行を防ぐ
+  return /^[=+\-@\t\r]/.test(str) ? ' ' + str : str
+}
+
 // CSV出力関数
 const exportToCSV = (dataArray, hotelName) => {
   const headers = ['月', '売上高', '売上目標', '達成率', '販売客室数', '稼働率', 'ADR', 'RevPAR', '国内客比率', '海外客比率']
@@ -745,15 +752,18 @@ const exportToCSV = (dataArray, hotelName) => {
     csvRows.push([
       d.month, d.revenue, d.revenueTarget || 0, achieve, d.rooms,
       d.occupancy + '%', d.adr, revpar, d.domesticRatio + '%', d.overseasRatio + '%'
-    ].join(','))
+    ].map(sanitizeCsvValue).join(','))
   })
   const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = `${hotelName}_データ_${new Date().toISOString().slice(0, 10)}.csv`
+  // DOMに追加してクリック後に削除し、URLは非同期で解放
+  document.body.appendChild(a)
   a.click()
-  URL.revokeObjectURL(url)
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 100)
 }
 
 // 月次レポート生成関数
@@ -1182,10 +1192,26 @@ const DataInputModal = ({ isOpen, onClose, onSave, editData, hotelKey }) => {
   )
 }
 
+// パスワードのSHA-256ハッシュ（平文を保持しないため）
+const PWD_HASH = '9b1e301dd7c4b872a8413b5f1d8afb6c9fba7bd0b64dce5d94ca17a1a2ee9cee'
+const DELETE_PWD_HASH = '9b1e301dd7c4b872a8413b5f1d8afb6c9fba7bd0b64dce5d94ca17a1a2ee9cee'
+
+// パスワードをSHA-256でハッシュ化するユーティリティ
+async function hashPassword(plain) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(plain))
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+// セッションtokenキー
+const AUTH_TOKEN_KEY = 'hotelDashboardToken'
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState(false)
+  // ブルートフォース対策用state
+  const [loginAttempts, setLoginAttempts] = useState(0)
+  const [loginLockUntil, setLoginLockUntil] = useState(0)
   const [currentHotel, setCurrentHotel] = useState('doubutsuen')
   const [data, setData] = useState({})
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -1223,7 +1249,9 @@ function App() {
     setPasswordInput('')
     setData({})
     setImprovements({})
-    sessionStorage.removeItem('hotelDashboardAuth')
+    // セッションtokenを削除し、業務データもsessionStorageから削除
+    sessionStorage.removeItem(AUTH_TOKEN_KEY)
+    localStorage.removeItem('hotelDashboardData_v7')
   }, [])
 
   // ホテルメニュー外クリックで閉じる
@@ -1259,10 +1287,11 @@ function App() {
     }
   }, [showAppsMenu])
 
-  // パスワード認証チェック
+  // パスワード認証チェック（ランダムtokenで検証）
   useEffect(() => {
-    const auth = sessionStorage.getItem('hotelDashboardAuth')
-    if (auth === 'authenticated') {
+    const token = sessionStorage.getItem(AUTH_TOKEN_KEY)
+    // tokenが存在し、形式が正しい（64文字hex）場合のみ認証済みとみなす
+    if (token && /^[0-9a-f]{64}$/.test(token)) {
       setIsAuthenticated(true)
     }
   }, [])
@@ -1354,14 +1383,28 @@ function App() {
     setIsRefreshing(false)
   }
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault()
-    if (passwordInput === 'hotel2026') {
+    // ブルートフォース対策：ロック中は処理しない
+    if (Date.now() < loginLockUntil) return
+    const hash = await hashPassword(passwordInput)
+    if (hash === PWD_HASH) {
       setIsAuthenticated(true)
       setPasswordError(false)
-      sessionStorage.setItem('hotelDashboardAuth', 'authenticated')
+      setLoginAttempts(0)
+      // ランダムtokenを生成してsessionStorageに保存
+      const token = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+        .map(b => b.toString(16).padStart(2, '0')).join('')
+      sessionStorage.setItem(AUTH_TOKEN_KEY, token)
     } else {
+      const next = loginAttempts + 1
+      setLoginAttempts(next)
       setPasswordError(true)
+      // 5回失敗でロック（30秒）
+      if (next >= 5) {
+        setLoginLockUntil(Date.now() + 30000)
+        setLoginAttempts(0)
+      }
     }
   }
 
@@ -1722,8 +1765,9 @@ function App() {
       }
       showToast(true, 'データを保存しました')
     } catch (err) {
+      // 内部エラーはログのみ（DB情報をユーザーに露出しない）
       console.error('データ保存エラー:', err)
-      showToast(false, `保存失敗: ${err.message || JSON.stringify(err)}`)
+      showToast(false, '保存に失敗しました。しばらくしてから再度お試しください。')
     }
   }
 
@@ -1738,7 +1782,9 @@ function App() {
   }
 
   const handleDeleteConfirm = async () => {
-    if (deletePassword !== 'hotel2026') {
+    // 削除パスワードもSHA-256ハッシュで比較
+    const hash = await hashPassword(deletePassword)
+    if (hash !== DELETE_PWD_HASH) {
       setDeletePasswordError(true)
       return
     }
@@ -1846,6 +1892,7 @@ function App() {
         if (error) throw error
       }
     } catch (err) {
+      // 内部エラーはログのみ（DB情報をユーザーに露出しない）
       console.error('改善事項保存エラー:', err)
       localStorage.setItem('hotelImprovements_v7', JSON.stringify(newImprovements))
     }
@@ -1875,9 +1922,13 @@ function App() {
               {passwordError && (
                 <p className="text-red-500 text-sm mt-2 text-center">パスワードが正しくありません</p>
               )}
+              {Date.now() < loginLockUntil && (
+                <p className="text-orange-500 text-sm mt-2 text-center">試行回数が超過しました、30秒待ってから再度お試しください</p>
+              )}
             </div>
             <button type="submit"
-              className="w-full py-3 bg-[#1a3a52] text-white rounded-lg hover:bg-[#2d5a7b] transition font-medium">
+              disabled={Date.now() < loginLockUntil}
+              className="w-full py-3 bg-[#1a3a52] text-white rounded-lg hover:bg-[#2d5a7b] transition font-medium disabled:opacity-50 disabled:cursor-not-allowed">
               ログイン
             </button>
           </form>
