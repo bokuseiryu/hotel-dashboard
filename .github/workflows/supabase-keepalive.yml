@@ -1,0 +1,29 @@
+# Supabaseプロジェクトの自動停止を防ぐKeep-Aliveワークフロー
+# 毎日1回、Supabaseに定期アクセスして「活動あり」と認識させる
+
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # 毎日 午前9時（日本時間）に実行  UTC 00:00
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          echo "Supabase Keep-Alive: $(date)"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/?select=1&limit=1")
+          echo "HTTP Status: $STATUS"
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+            echo "Keep-Alive 成功"
+          else
+            echo "Keep-Alive 失敗 (Status: $STATUS)"
+            exit 1
+          fi
