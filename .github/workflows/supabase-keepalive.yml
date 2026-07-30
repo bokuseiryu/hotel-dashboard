@@ -9,24 +9,23 @@ jobs:
   keepalive:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase
+      - name: Ping Supabase hotel-dashboard
         run: |
           echo "Keep-Alive: $(date)"
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" -m 15 \
             -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            "${{ secrets.SUPABASE_URL }}/auth/v1/health")
+            "https://abfejycabbaicxoewvuj.supabase.co/rest/v1/")
           echo "HTTP Status: $STATUS"
           if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
             echo "SUCCESS"
           else
             STATUS2=$(curl -s -o /dev/null -w "%{http_code}" -m 15 \
-              -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-              "${{ secrets.SUPABASE_URL }}/rest/v1/")
+              "https://abfejycabbaicxoewvuj.supabase.co/auth/v1/health")
             echo "Fallback HTTP Status: $STATUS2"
             if [ "$STATUS2" -ge 200 ] && [ "$STATUS2" -lt 400 ]; then
               echo "SUCCESS via fallback"
             else
-              echo "FAILED"
+              echo "FAILED: $STATUS2"
               exit 1
             fi
           fi
