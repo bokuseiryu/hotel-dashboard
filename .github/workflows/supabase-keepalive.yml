@@ -1,11 +1,7 @@
-# Supabase Keep-Alive - 謾ｹ濶ｯ迚・# 豈・蟆乗慮謇ｧ陦・谺｡・碁剄菴取嘯蛛憺｣朱勦
-# 螟夂ｫｯ轤ｹ螟・ｻｽ + 驥崎ｯ墓惻蛻ｶ
-
 name: Supabase Keep-Alive
 
 on:
   schedule:
-    # 豈・蟆乗慮謇ｧ陦鯉ｼ・0:00, 06:00, 12:00, 18:00 UTC
     - cron: '0 */6 * * *'
   workflow_dispatch:
 
@@ -13,43 +9,24 @@ jobs:
   keepalive:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase (螟夂ｫｯ轤ｹ + 驥崎ｯ・
+      - name: Ping Supabase
         run: |
-          echo "=== Supabase Keep-Alive: $(date) ==="
-          
-          # 遶ｯ轤ｹ蛻苓｡ｨ・域潔莨伜・郤ｧ・・          ENDPOINTS=(
-            "/auth/v1/health"
-            "/rest/v1/"
-            "/storage/v1/healthcheck"
-          )
-          
-          SUCCESS=false
-          
-          # 蟆晁ｯ墓ｯ丈ｸｪ遶ｯ轤ｹ
-          for endpoint in "${ENDPOINTS[@]}"; do
-            echo "Testing: ${{ secrets.SUPABASE_URL }}${endpoint}"
-            
-            # 3谺｡驥崎ｯ・            for i in {1..3}; do
-              STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-                -m 10 \
-                "${{ secrets.SUPABASE_URL }}${endpoint}")
-              
-              echo "  Attempt $i: HTTP $STATUS"
-              
-              if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 500 ]; then
-                echo "  笨・SUCCESS on ${endpoint}"
-                SUCCESS=true
-                break 2
-              fi
-              
-              [ $i -lt 3 ] && sleep 5
-            done
-          done
-          
-          if [ "$SUCCESS" = true ]; then
-            echo "=== Keep-Alive SUCCESS ==="
-            exit 0
+          echo "Keep-Alive: $(date)"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -m 15 \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            "${{ secrets.SUPABASE_URL }}/auth/v1/health")
+          echo "HTTP Status: $STATUS"
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+            echo "SUCCESS"
           else
-            echo "=== Keep-Alive FAILED (all endpoints) ==="
-            exit 1
+            STATUS2=$(curl -s -o /dev/null -w "%{http_code}" -m 15 \
+              -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+              "${{ secrets.SUPABASE_URL }}/rest/v1/")
+            echo "Fallback HTTP Status: $STATUS2"
+            if [ "$STATUS2" -ge 200 ] && [ "$STATUS2" -lt 400 ]; then
+              echo "SUCCESS via fallback"
+            else
+              echo "FAILED"
+              exit 1
+            fi
           fi
