@@ -1,24 +1,55 @@
-# Supabase繝励Ο繧ｸ繧ｧ繧ｯ繝医・閾ｪ蜍募●豁｢繧帝亟縺尻eep-Alive繝ｯ繝ｼ繧ｯ繝輔Ο繝ｼ
-# /auth/v1/health 縺ｯ隱崎ｨｼ荳崎ｦ√〒蟶ｸ縺ｫ200繧定ｿ斐☆譛繧ょｮ牙ｮ壹＠縺溘お繝ｳ繝峨・繧､繝ｳ繝・name: Supabase Keep-Alive
+# Supabase Keep-Alive - 謾ｹ濶ｯ迚・# 豈・蟆乗慮謇ｧ陦・谺｡・碁剄菴取嘯蛛憺｣朱勦
+# 螟夂ｫｯ轤ｹ螟・ｻｽ + 驥崎ｯ墓惻蛻ｶ
+
+name: Supabase Keep-Alive
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    # 豈・蟆乗慮謇ｧ陦鯉ｼ・0:00, 06:00, 12:00, 18:00 UTC
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:
   keepalive:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase health endpoint
+      - name: Ping Supabase (螟夂ｫｯ轤ｹ + 驥崎ｯ・
         run: |
-          echo "Keep-Alive ping: $(date)"
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "${{ secrets.SUPABASE_URL }}/auth/v1/health")
-          echo "HTTP Status: $STATUS"
-          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
-            echo "SUCCESS: Supabase is active"
+          echo "=== Supabase Keep-Alive: $(date) ==="
+          
+          # 遶ｯ轤ｹ蛻苓｡ｨ・域潔莨伜・郤ｧ・・          ENDPOINTS=(
+            "/auth/v1/health"
+            "/rest/v1/"
+            "/storage/v1/healthcheck"
+          )
+          
+          SUCCESS=false
+          
+          # 蟆晁ｯ墓ｯ丈ｸｪ遶ｯ轤ｹ
+          for endpoint in "${ENDPOINTS[@]}"; do
+            echo "Testing: ${{ secrets.SUPABASE_URL }}${endpoint}"
+            
+            # 3谺｡驥崎ｯ・            for i in {1..3}; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                -m 10 \
+                "${{ secrets.SUPABASE_URL }}${endpoint}")
+              
+              echo "  Attempt $i: HTTP $STATUS"
+              
+              if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 500 ]; then
+                echo "  笨・SUCCESS on ${endpoint}"
+                SUCCESS=true
+                break 2
+              fi
+              
+              [ $i -lt 3 ] && sleep 5
+            done
+          done
+          
+          if [ "$SUCCESS" = true ]; then
+            echo "=== Keep-Alive SUCCESS ==="
+            exit 0
           else
-            echo "FAILED: status=$STATUS"
+            echo "=== Keep-Alive FAILED (all endpoints) ==="
             exit 1
           fi
