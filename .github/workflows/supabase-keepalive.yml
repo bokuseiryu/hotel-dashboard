@@ -16,16 +16,9 @@ jobs:
             -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
             "https://abfejycabbaicxoewvuj.supabase.co/rest/v1/")
           echo "HTTP Status: $STATUS"
-          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
-            echo "SUCCESS"
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 500 ]; then
+            echo "SUCCESS (status=$STATUS, project is alive)"
           else
-            STATUS2=$(curl -s -o /dev/null -w "%{http_code}" -m 15 \
-              "https://abfejycabbaicxoewvuj.supabase.co/auth/v1/health")
-            echo "Fallback HTTP Status: $STATUS2"
-            if [ "$STATUS2" -ge 200 ] && [ "$STATUS2" -lt 400 ]; then
-              echo "SUCCESS via fallback"
-            else
-              echo "FAILED: $STATUS2"
-              exit 1
-            fi
+            echo "FAILED (status=$STATUS, project may be down)"
+            exit 1
           fi
